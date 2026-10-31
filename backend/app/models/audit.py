@@ -1,0 +1,234 @@
+import enum
+from sqlalchemy import Column, String, JSON, ForeignKey, DateTime, Enum, Integer, UniqueConstraint
+from sqlalchemy.orm import relationship
+from datetime import datetime, timezone
+from app.db.database import Base
+
+class EventCategory(str, enum.Enum):
+    AUTH = "AUTH"
+    IDENTITY = "IDENTITY"
+    WORKSPACE = "WORKSPACE"
+    AGENT = "AGENT"
+    POLICY = "POLICY"
+    INTENT = "INTENT"
+    AUTHORITY = "AUTHORITY"
+    RISK = "RISK"
+    GATE = "GATE"
+    APPROVAL = "APPROVAL"
+    PAYMENT = "PAYMENT"
+    ORDER = "ORDER"
+    INVESTIGATION = "INVESTIGATION"
+    SECURITY = "SECURITY"
+    SYSTEM = "SYSTEM"
+
+class EventSeverity(str, enum.Enum):
+    INFO = "INFO"
+    NOTICE = "NOTICE"
+    WARNING = "WARNING"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+class ActorType(str, enum.Enum):
+    USER = "USER"
+    AGENT = "AGENT"
+    SYSTEM = "SYSTEM"
+    API_CLIENT = "API_CLIENT"
+    ADMIN = "ADMIN"
+
+class WorkspaceAuditSequence(Base):
+    __tablename__ = "workspace_audit_sequences"
+
+    workspace_id = Column(String, ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True)
+    current_sequence = Column(Integer, default=0, nullable=False)
+    latest_event_hash = Column(String, nullable=True)
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id = Column(String, primary_key=True, index=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Core Identity
+    event_type = Column(String, nullable=False, index=True)
+    event_category = Column(Enum(EventCategory), nullable=False, index=True)
+    severity = Column(Enum(EventSeverity), nullable=False, index=True)
+    
+    # Actor Information
+    actor_type = Column(Enum(ActorType), nullable=False)
+    actor_id = Column(String, nullable=True, index=True)
+    
+    # Agent Context (optional)
+    agent_id = Column(String, nullable=True, index=True)
+    agent_run_id = Column(String, nullable=True)
+    agent_action_id = Column(String, nullable=True)
+    
+    # Target Entity
+    entity_type = Column(String, nullable=True, index=True)
+    entity_id = Column(String, nullable=True, index=True)
+    
+    # Request & Correlation Context
+    request_id = Column(String, nullable=True, index=True)
+    correlation_id = Column(String, nullable=True, index=True)
+    
+    # Network Context (optional)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    
+    # Data payloads
+    payload = Column(JSON, nullable=True)
+    before_snapshot = Column(JSON, nullable=True)
+    after_snapshot = Column(JSON, nullable=True)
+    metadata_ = Column("metadata", JSON, nullable=True)
+    
+    # Integrity & Hash Chaining
+    workspace_sequence = Column(Integer, nullable=False)
+    previous_event_hash = Column(String, nullable=True)
+    event_hash = Column(String, nullable=False)
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "workspace_sequence", name="uq_workspace_audit_sequence"),
+    )
+
+    workspace = relationship("Workspace")
+
+class EventTypes:
+    # AUTH
+    USER_REGISTERED = "USER_REGISTERED"
+    USER_LOGIN_SUCCEEDED = "USER_LOGIN_SUCCEEDED"
+    USER_LOGIN_FAILED = "USER_LOGIN_FAILED"
+    USER_LOGOUT = "USER_LOGOUT"
+    PASSWORD_RESET_REQUESTED = "PASSWORD_RESET_REQUESTED"
+    PASSWORD_RESET_COMPLETED = "PASSWORD_RESET_COMPLETED"
+    EMAIL_VERIFICATION_REQUESTED = "EMAIL_VERIFICATION_REQUESTED"
+    EMAIL_VERIFIED = "EMAIL_VERIFIED"
+    SESSION_CREATED = "SESSION_CREATED"
+    SESSION_REVOKED = "SESSION_REVOKED"
+    
+    # WORKSPACE
+    WORKSPACE_CREATED = "WORKSPACE_CREATED"
+    WORKSPACE_UPDATED = "WORKSPACE_UPDATED"
+    WORKSPACE_SETTINGS_UPDATED = "WORKSPACE_SETTINGS_UPDATED"
+    USER_PROFILE_UPDATED = "USER_PROFILE_UPDATED"
+    USER_PREFERENCES_UPDATED = "USER_PREFERENCES_UPDATED"
+    USER_NOTIFICATION_SETTINGS_UPDATED = "USER_NOTIFICATION_SETTINGS_UPDATED"
+    
+    # AGENT
+    AGENT_CREATED = "AGENT_CREATED"
+    AGENT_UPDATED = "AGENT_UPDATED"
+    AGENT_ACTIVATED = "AGENT_ACTIVATED"
+    AGENT_PAUSED = "AGENT_PAUSED"
+    AGENT_RESUMED = "AGENT_RESUMED"
+    AGENT_REVOKED = "AGENT_REVOKED"
+    AGENT_ARCHIVED = "AGENT_ARCHIVED"
+    AGENT_CREDENTIAL_CREATED = "AGENT_CREDENTIAL_CREATED"
+    AGENT_CREDENTIAL_REVOKED = "AGENT_CREDENTIAL_REVOKED"
+    AGENT_CAPABILITY_UPDATED = "AGENT_CAPABILITY_UPDATED"
+    
+    # RUNTIME
+    AGENT_RUN_CREATED = "AGENT_RUN_CREATED"
+    AGENT_RUN_STARTED = "AGENT_RUN_STARTED"
+    AGENT_ACTION_STARTED = "AGENT_ACTION_STARTED"
+    AGENT_ACTION_COMPLETED = "AGENT_ACTION_COMPLETED"
+    AGENT_ACTION_FAILED = "AGENT_ACTION_FAILED"
+    AGENT_TOOL_DENIED = "AGENT_TOOL_DENIED"
+    AGENT_RUN_COMPLETED = "AGENT_RUN_COMPLETED"
+    AGENT_RUN_FAILED = "AGENT_RUN_FAILED"
+    AGENT_RUN_CANCELLED = "AGENT_RUN_CANCELLED"
+    
+    # POLICY
+    POLICY_CREATED = "POLICY_CREATED"
+    POLICY_UPDATED = "POLICY_UPDATED"
+    POLICY_ACTIVATED = "POLICY_ACTIVATED"
+    POLICY_DISABLED = "POLICY_DISABLED"
+    POLICY_ARCHIVED = "POLICY_ARCHIVED"
+    POLICY_EVALUATED = "POLICY_EVALUATED"
+    
+    # INTENT
+    INTENT_CREATED = "INTENT_CREATED"
+    INTENT_UPDATED = "INTENT_UPDATED"
+    INTENT_CONFIRMED = "INTENT_CONFIRMED"
+    INTENT_REVOKED = "INTENT_REVOKED"
+    INTENT_PAUSED = "INTENT_PAUSED"
+    INTENT_COMPLETED = "INTENT_COMPLETED"
+    INTENT_EXPIRED = "INTENT_EXPIRED"
+    INTENT_CANCELLED = "INTENT_CANCELLED"
+    INTENT_EVALUATED = "INTENT_EVALUATED"
+    
+    # AUTHORITY
+    AUTHORITY_CREATED = "AUTHORITY_CREATED"
+    AUTHORITY_UPDATED = "AUTHORITY_UPDATED"
+    AUTHORITY_REVOKED = "AUTHORITY_REVOKED"
+    AUTHORITY_EXPIRED = "AUTHORITY_EXPIRED"
+    AUTHORITY_EVALUATED = "AUTHORITY_EVALUATED"
+    
+    # RISK
+    RISK_ASSESSMENT_CREATED = "RISK_ASSESSMENT_CREATED"
+    RISK_ASSESSMENT_COMPLETED = "RISK_ASSESSMENT_COMPLETED"
+    RISK_ASSESSMENT_FAILED = "RISK_ASSESSMENT_FAILED"
+    
+    # GATE
+    GATE_EVALUATED = "GATE_EVALUATED"
+    GATE_ALLOWED = "GATE_ALLOWED"
+    GATE_REVIEW_REQUIRED = "GATE_REVIEW_REQUIRED"
+    GATE_BLOCKED = "GATE_BLOCKED"
+    
+    # APPROVAL
+    APPROVAL_REQUESTED = "APPROVAL_REQUESTED"
+    APPROVAL_APPROVED = "APPROVAL_APPROVED"
+    APPROVAL_REJECTED = "APPROVAL_REJECTED"
+    APPROVAL_EXPIRED = "APPROVAL_EXPIRED"
+    APPROVAL_CANCELLED = "APPROVAL_CANCELLED"
+    
+    # PAYMENT
+    PAYMENT_CREATED = "PAYMENT_CREATED"
+    PAYMENT_AUTHORIZED = "PAYMENT_AUTHORIZED"
+    PAYMENT_CAPTURED = "PAYMENT_CAPTURED"
+    PAYMENT_CANCELLED = "PAYMENT_CANCELLED"
+    PAYMENT_FAILED = "PAYMENT_FAILED"
+    
+    # COMMERCE
+    MERCHANT_CREATED = "MERCHANT_CREATED"
+    MERCHANT_UPDATED = "MERCHANT_UPDATED"
+    MERCHANT_DISABLED = "MERCHANT_DISABLED"
+    MERCHANT_ARCHIVED = "MERCHANT_ARCHIVED"
+    PRODUCT_CREATED = "PRODUCT_CREATED"
+    PRODUCT_UPDATED = "PRODUCT_UPDATED"
+    PRODUCT_DISABLED = "PRODUCT_DISABLED"
+    PRODUCT_ARCHIVED = "PRODUCT_ARCHIVED"
+    CART_CREATED = "CART_CREATED"
+    CART_ITEM_ADDED = "CART_ITEM_ADDED"
+    CART_ITEM_UPDATED = "CART_ITEM_UPDATED"
+    CART_ITEM_REMOVED = "CART_ITEM_REMOVED"
+    ORDER_CREATED = "ORDER_CREATED"
+    ORDER_PAYMENT_PENDING = "ORDER_PAYMENT_PENDING"
+    ORDER_PAID = "ORDER_PAID"
+    ORDER_PROCESSING = "ORDER_PROCESSING"
+    ORDER_FULFILLED = "ORDER_FULFILLED"
+    ORDER_CANCELLED = "ORDER_CANCELLED"
+    ORDER_PAYMENT_FAILED = "ORDER_PAYMENT_FAILED"
+    
+    # INVESTIGATIONS
+    INVESTIGATION_CREATED = "INVESTIGATION_CREATED"
+    INVESTIGATION_UPDATED = "INVESTIGATION_UPDATED"
+    INVESTIGATION_ASSIGNED = "INVESTIGATION_ASSIGNED"
+    INVESTIGATION_ESCALATED = "INVESTIGATION_ESCALATED"
+    INVESTIGATION_RESOLVED = "INVESTIGATION_RESOLVED"
+    INVESTIGATION_CLOSED = "INVESTIGATION_CLOSED"
+    INVESTIGATION_EVIDENCE_ADDED = "INVESTIGATION_EVIDENCE_ADDED"
+    INVESTIGATION_NOTE_ADDED = "INVESTIGATION_NOTE_ADDED"
+    
+    # SECURITY
+    SECURITY_EVENT_DETECTED = "SECURITY_EVENT_DETECTED"
+    PROMPT_INJECTION_DETECTED = "PROMPT_INJECTION_DETECTED"
+    TOOL_OUTPUT_POISONING_DETECTED = "TOOL_OUTPUT_POISONING_DETECTED"
+    AUTHORITY_VIOLATION_DETECTED = "AUTHORITY_VIOLATION_DETECTED"
+    INTENT_DRIFT_DETECTED = "INTENT_DRIFT_DETECTED"
+    SUSPICIOUS_AGENT_BEHAVIOR = "SUSPICIOUS_AGENT_BEHAVIOR"
+    
+    # SYSTEM
+    SYSTEM_ERROR = "SYSTEM_ERROR"
+    SYSTEM_CONFIGURATION_CHANGED = "SYSTEM_CONFIGURATION_CHANGED"
+    AUDIT_INTEGRITY_CHECK = "AUDIT_INTEGRITY_CHECK"
+    AUDIT_EXPORT_REQUESTED = "AUDIT_EXPORT_REQUESTED"
